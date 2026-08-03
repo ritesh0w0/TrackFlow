@@ -9,13 +9,102 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url=env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
+
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String          @id @default(uuid())
+  name            String
+  email           String          @unique
+  password        String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdProjects Project[]       @relation("CreatedProjects")
+  projectMembers  ProjectMember[]
+  reportedIssues  Issue[]         @relation("ReportedIssues")
+  assignedIssues  Issue[]         @relation("AssignedIssues")
+  activityLogs    ActivityLog[]
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Project {
+  id          String          @id @default(uuid())
+  title       String
+  description String?
+  createdById String
+  createdBy   User            @relation("CreatedProjects", fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  members     ProjectMember[]
+  issues      Issue[]
+}
+
+model ProjectMember {
+  id        String      @id @default(uuid())
+  userId    String
+  projectId String
+  role      ProjectRole
+  joinedAt  DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+enum IssueStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum IssuePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Issue {
+  id          String        @id @default(uuid())
+  title       String
+  description String?
+  status      IssueStatus   @default(TODO)
+  priority    IssuePriority @default(MEDIUM)
+  dueDate     DateTime?
+  projectId   String
+  reporterId  String
+  assigneeId  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reporter   User          @relation("ReportedIssues", fields: [reporterId], references: [id])
+  assignee   User?         @relation("AssignedIssues", fields: [assigneeId], references: [id])
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([reporterId])
+  @@index([status])
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  entityType String   // e.g. "ISSUE", "PROJECT"
+  entityId   String   // ID of the related entity
+  userId     String
+  action     String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([entityId])
+  @@index([userId])
 }
