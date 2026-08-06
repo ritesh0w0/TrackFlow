@@ -5,6 +5,9 @@ const {
   getIssueByIdController,
   updateIssueController,
   deleteIssueController,
+  assignIssueController,
+  updateIssueStatusController,
+  updateIssuePriorityController,
 } = require('../controllers/issue.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 
@@ -12,13 +15,16 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
-// Routes scoped by project
+// Project-scoped issue routes
 router.post('/projects/:projectId/issues', createIssueController);
 router.get('/projects/:projectId/issues', getIssuesController);
 
-// Routes scoped by issue directly
+// Issue-scoped routes
 router.get('/issues/:id', getIssueByIdController);
 router.patch('/issues/:id', updateIssueController);
 router.delete('/issues/:id', deleteIssueController);
+router.patch('/issues/:id/assign', assignIssueController);
+router.patch('/issues/:id/status', updateIssueStatusController);
+router.patch('/issues/:id/priority', updateIssuePriorityController);
 
 module.exports = router;

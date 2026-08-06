@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -23,6 +21,7 @@ model User {
   projectMembers  ProjectMember[]
   reportedIssues  Issue[]         @relation("ReportedIssues")
   assignedIssues  Issue[]         @relation("AssignedIssues")
+  comments        Comment[]
   activityLogs    ActivityLog[]
 }
 
@@ -84,9 +83,10 @@ model Issue {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  reporter   User          @relation("ReportedIssues", fields: [reporterId], references: [id])
-  assignee   User?         @relation("AssignedIssues", fields: [assigneeId], references: [id])
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reporter    User      @relation("ReportedIssues", fields: [reporterId], references: [id])
+  assignee    User?     @relation("AssignedIssues", fields: [assigneeId], references: [id])
+  comments    Comment[]
 
   @@index([projectId])
   @@index([assigneeId])
@@ -94,16 +94,31 @@ model Issue {
   @@index([status])
 }
 
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  issueId   String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  issue     Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([issueId])
+  @@index([userId])
+}
+
 model ActivityLog {
   id         String   @id @default(uuid())
-  entityType String   // e.g. "ISSUE", "PROJECT"
-  entityId   String   // ID of the related entity
   userId     String
   action     String
+  entityType String
+  entityId   String
   metadata   Json?
   createdAt  DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([entityId])
   @@index([userId])
