@@ -1,73 +1,50 @@
-# TrackFlow — AI Engineering & Implementation Log 🛠️
+# TrackFlow — AI Implementation & Engineering Log 🛠️
 
-This document details the architectural decisions, bug remediations, security hardenings, performance optimizations, and verification logs executed during the final MVP production pass.
+This document details the architectural decisions, bug remediations, UI customizations, database seeding, and verification logs for the TrackFlow portfolio application.
 
 ---
 
-## 1. Executive Summary of Changes
+## 1. Executive Summary of Implementations & Refinements
 
-| Domain | Initial State | Remediated Production State | Root Cause & Resolution |
+| Domain | Initial State | Final State | Rationale & Resolution |
 |---|---|---|---|
-| **Profile Page** | Blank / 404 navigation target; missing route; unlinked navbar/sidebar. | Complete `/profile` page with developer identity, real-time stats cards, joined project list, and inline name editor. | No route registered in `AppRoutes.jsx` and missing `Profile.jsx`. Added `GET /api/auth/profile` and `PUT /api/auth/profile` backed by database aggregations. |
-| **Password Security** | Relaxed password validation. | Strict 8+ char policy requiring $\ge 1$ uppercase, $\ge 1$ lowercase, $\ge 1$ number, $\ge 1$ special character; frontend live requirement checklist and `confirmPassword` validation. | Aligned regex on both frontend and backend Zod schemas (`/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/`). |
-| **Performance** | TanStack Query had `staleTime: 0`, causing background network refetches on every route remount. | Configured `staleTime: 30 * 1000` (30s), `gcTime: 5 * 60 * 1000`, `refetchOnWindowFocus: false`. | Caching prevents redundant refetches while mutations explicitly invalidate matching query keys. |
-| **Visual Aesthetics** | Vibrant blue-heavy gradients and inconsistent card tones. | Dark Charcoal & Zinc neutral palette (`zinc-950`/`zinc-900`/`zinc-800`), high contrast text, and disciplined semantic status badges. | Overhauled `index.css`, `Navbar`, `Sidebar`, `Dashboard`, `KanbanBoard`, `IssueTable`, `IssueDetails`, `Projects`, `Profile`. |
-| **Deployment Readiness** | Missing Vercel SPA rewrites and Prisma deploy scripts. | Added `client/vercel.json` SPA rewrite rule and `server/package.json` deploy scripts. | SPA client routes on Vercel now rewrite cleanly to `/index.html` on hard refresh. |
+| **Top-Right Profile Logo** | Clickable avatar trigger opening account menu. | Static, unclickable verified profile badge. | User preference: Disabled pointer events and removed dropdown trigger in `Navbar.jsx`. |
+| **Sidebar Layout** | Redundant user name box at bottom left corner. | Clean navigation list with dedicated bottom **Log out** button. | User preference: Streamlined sidebar in `Sidebar.jsx`; profile overview accessible via direct navigation. |
+| **Database Dataset** | Empty / test records only. | Fully seeded with 8 Indian team members, 4 enterprise projects, 21 issues, comments, and activity logs. | Created `server/prisma/seed.js` using simple Indian developer names (Aarav, Priya, Rohan, Ananya, Rahul, Neha, Aditya, Pooja) with varied priority/status workflows. |
+| **Password Policy** | Basic password validation. | Strict 8+ char policy requiring uppercase, lowercase, number, and special character with live requirement checklist. | Regex `/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/` enforced on both frontend and backend Zod schemas. |
+| **Profile Page** | Blank / missing route. | Complete `/profile` page with stats cards, joined projects, and display name inline editing. | Built `Profile.jsx`, registered `/profile` route, backed by `GET /api/auth/profile` and `PUT /api/auth/profile`. |
+| **Performance & Caching** | Constant background refetches on route changes. | TanStack Query configured with `staleTime: 30s` and `gcTime: 5min`. | Eliminates redundant network requests while preserving instant mutation cache invalidations. |
+| **Visual Aesthetics** | Blue-heavy palette. | Dark Charcoal & Zinc neutral developer palette (`zinc-950`/`zinc-900`/`zinc-800`). | High contrast text, zinc surfaces, restrained semantic status badges (emerald/amber/zinc/rose). |
 
 ---
 
-## 2. API Contract Enhancements
+## 2. Seeded Team Members & Credentials
 
-### `GET /api/auth/profile`
-- **Authentication**: Required (JWT Bearer or Cookie)
-- **Response**:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "uuid",
-    "name": "Alex Rivera (Lead)",
-    "email": "alex.rivera.qa@trackflow.test",
-    "createdAt": "2026-09-01T12:00:00.000Z",
-    "stats": {
-      "projectsJoined": 1,
-      "issuesReported": 1,
-      "assignedOpenIssues": 0,
-      "assignedCompletedIssues": 1,
-      "totalComments": 0
-    },
-    "projects": [
-      {
-        "id": "uuid",
-        "title": "Payment Gateway Integration",
-        "role": "OWNER",
-        "joinedAt": "2026-09-01T12:00:00.000Z"
-      }
-    ]
-  }
-}
-```
+All seeded accounts share the default development password: `TrackFlow9!`
 
-### `PUT /api/auth/profile`
-- **Authentication**: Required
-- **Request Body**: `{ "name": "Alex Rivera (Lead)" }`
-- **Response**: `{ "success": true, "message": "Profile updated successfully", "user": { ... } }`
+| Name | Role / Focus | Email |
+|---|---|---|
+| **Aarav Sharma** | Lead Architect (Primary Demo Account) | `aarav.sharma@trackflow.dev` |
+| **Priya Patel** | Full Stack Engineer | `priya.patel@trackflow.dev` |
+| **Rohan Verma** | Backend Specialist | `rohan.verma@trackflow.dev` |
+| **Ananya Iyer** | Frontend & UI/UX | `ananya.iyer@trackflow.dev` |
+| **Rahul Gupta** | DevOps & Cloud Architect | `rahul.gupta@trackflow.dev` |
+| **Neha Singh** | QA & Security Engineer | `neha.singh@trackflow.dev` |
+| **Aditya Rao** | Mobile & API Engineer | `aditya.rao@trackflow.dev` |
+| **Pooja Nair** | Product & Data Analyst | `pooja.nair@trackflow.dev` |
 
 ---
 
-## 3. Database Indexing & Query Strategy
+## 3. Seeded Enterprise Projects
 
-```sql
--- Composite indexes for low-latency queries & dashboard aggregation
-CREATE INDEX IF NOT EXISTS "Issue_projectId_status_idx" ON "Issue"("projectId", "status");
-CREATE INDEX IF NOT EXISTS "Issue_projectId_priority_idx" ON "Issue"("projectId", "priority");
-CREATE INDEX IF NOT EXISTS "Issue_projectId_createdAt_idx" ON "Issue"("projectId", "createdAt");
-CREATE INDEX IF NOT EXISTS "ActivityLog_projectId_createdAt_idx" ON "ActivityLog"("projectId", "createdAt");
-```
+1. **Unified Payments Engine (UPI & Cards)**: Multi-gateway orchestration engine supporting UPI Autopay, Razorpay, Stripe, and credit card tokenization.
+2. **Customer Onboarding & KYC Pipeline**: Automated Aadhaar, PAN, and DigiLocker verification workflows with real-time biometric risk scoring.
+3. **Real-time Order & Delivery Logistics**: Low-latency WebSocket dispatch system for hyperlocal rider allocation and ETA calculation.
+4. **Cloud Infrastructure & Zero-Trust Security**: Kubernetes multi-region clusters, automated SSL rotation, HashiCorp Vault secrets management, and DDoS mitigation.
 
 ---
 
-## 4. Test Suite Execution Log
+## 4. Automated Test Suite Results
 
 ```
 > server@1.0.0 test
