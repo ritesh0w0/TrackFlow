@@ -203,11 +203,3 @@ npm test
 4. **Resilient Dual-Auth Strategy:** HTTP-only cookies paired with Bearer token authorization header fallbacks to ensure compatibility across modern partitioned cookie environments.
 5. **No N+1 Query Bottlenecks:** Dashboard analytics dispatches parallel queries via `Promise.all()` with database-level aggregations (`groupBy`, `count`).
 6. **Input Sanitization & Validation:** Comprehensive Zod schemas on both frontend forms and backend controllers.
-
----
-
-## 📦 Deployment Architecture
-
-- **Frontend:** Vercel / Netlify (`dist` output from `vite build`).
-- **Backend API:** Render / Railway (`node src/server.js`).
-- **Database:** Neon Serverless PostgreSQL with connection pooling.
