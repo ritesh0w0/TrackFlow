@@ -4,11 +4,6 @@ const { verifyProjectMember } = require('./issue.service');
 
 /**
  * Create a new comment on an issue.
- * @param {string} userId - Requesting user ID (author)
- * @param {string} issueId - Target issue ID
- * @param {Object} data - Payload containing content
- * @returns {Promise<Object>} Created comment record (excluding user credentials)
- * @throws {Error} 400 on invalid content, 404 if issue not found, 403 if user not project member
  */
 async function createComment(userId, issueId, data) {
   const { content } = data || {};
@@ -21,6 +16,7 @@ async function createComment(userId, issueId, data) {
 
   const issue = await prisma.issue.findUnique({
     where: { id: issueId },
+    select: { id: true, title: true, projectId: true },
   });
 
   if (!issue) {
@@ -42,7 +38,8 @@ async function createComment(userId, issueId, data) {
         id: true,
         content: true,
         createdAt: true,
-        user: { select: { id: true, name: true } },
+        updatedAt: true,
+        user: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -52,7 +49,8 @@ async function createComment(userId, issueId, data) {
         action: 'COMMENT_CREATED',
         entityType: 'COMMENT',
         entityId: comment.id,
-        metadata: { issueId, contentLength: comment.content.length },
+        projectId: issue.projectId,
+        metadata: { issueId, issueTitle: issue.title, contentLength: comment.content.length },
       },
       tx
     );
@@ -63,14 +61,11 @@ async function createComment(userId, issueId, data) {
 
 /**
  * List comments for an issue in ascending order of creation.
- * @param {string} userId - Requesting user ID
- * @param {string} issueId - Target issue ID
- * @returns {Promise<Array>} List of comment objects
- * @throws {Error} 404 if issue not found, 403 if user not project member
  */
 async function getComments(userId, issueId) {
   const issue = await prisma.issue.findUnique({
     where: { id: issueId },
+    select: { projectId: true },
   });
 
   if (!issue) {
@@ -89,18 +84,13 @@ async function getComments(userId, issueId) {
       content: true,
       createdAt: true,
       updatedAt: true,
-      user: { select: { id: true, name: true } },
+      user: { select: { id: true, name: true, email: true } },
     },
   });
 }
 
 /**
  * Update a comment. Only the original comment author may edit.
- * @param {string} userId - Requesting user ID
- * @param {string} commentId - Comment ID
- * @param {Object} data - Payload containing content
- * @returns {Promise<Object>} Updated comment object
- * @throws {Error} 400 on invalid content, 404 if comment not found, 403 if user not author
  */
 async function updateComment(userId, commentId, data) {
   const { content } = data || {};
@@ -113,7 +103,7 @@ async function updateComment(userId, commentId, data) {
 
   const comment = await prisma.comment.findUnique({
     where: { id: commentId },
-    include: { issue: { select: { projectId: true } } },
+    include: { issue: { select: { id: true, title: true, projectId: true } } },
   });
 
   if (!comment) {
@@ -137,7 +127,7 @@ async function updateComment(userId, commentId, data) {
         content: true,
         createdAt: true,
         updatedAt: true,
-        user: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -147,7 +137,8 @@ async function updateComment(userId, commentId, data) {
         action: 'COMMENT_UPDATED',
         entityType: 'COMMENT',
         entityId: commentId,
-        metadata: { issueId: comment.issueId },
+        projectId: comment.issue.projectId,
+        metadata: { issueId: comment.issueId, issueTitle: comment.issue.title },
       },
       tx
     );
@@ -158,14 +149,11 @@ async function updateComment(userId, commentId, data) {
 
 /**
  * Delete a comment. Only the original comment author may delete.
- * @param {string} userId - Requesting user ID
- * @param {string} commentId - Comment ID
- * @returns {Promise<void>}
- * @throws {Error} 404 if comment not found, 403 if user not author
  */
 async function deleteComment(userId, commentId) {
   const comment = await prisma.comment.findUnique({
     where: { id: commentId },
+    include: { issue: { select: { id: true, title: true, projectId: true } } },
   });
 
   if (!comment) {
@@ -187,7 +175,8 @@ async function deleteComment(userId, commentId) {
         action: 'COMMENT_DELETED',
         entityType: 'COMMENT',
         entityId: commentId,
-        metadata: { issueId: comment.issueId },
+        projectId: comment.issue.projectId,
+        metadata: { issueId: comment.issueId, issueTitle: comment.issue.title },
       },
       tx
     );

@@ -1,22 +1,37 @@
 const issueService = require('../services/issue.service');
+const {
+  createIssueSchema,
+  updateIssueSchema,
+  assignIssueSchema,
+  updateStatusSchema,
+  updatePrioritySchema,
+} = require('../validations/issue.validation');
 
-async function createIssueController(req, res) {
+async function createIssueController(req, res, next) {
   try {
-    const issue = await issueService.createIssue(req.user.id, req.params.projectId, req.body);
+    const validatedData = createIssueSchema.parse(req.body);
+    const issue = await issueService.createIssue(req.user.id, req.params.projectId, validatedData);
     return res.status(201).json({
       success: true,
+      message: 'Issue created successfully',
       data: issue,
     });
   } catch (error) {
-    const status = error.statusCode || 500;
+    if (error.name === 'ZodError' || error.issues) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues?.[0]?.message || error.errors?.[0]?.message || 'Validation error',
+      });
+    }
+    const status = error.statusCode || 400;
     return res.status(status).json({
       success: false,
-      message: error.message || 'Internal server error',
+      message: error.message || 'Failed to create issue',
     });
   }
 }
 
-async function getIssuesController(req, res) {
+async function getIssuesController(req, res, next) {
   try {
     const result = await issueService.getIssues(req.user.id, req.params.projectId, req.query);
     return res.status(200).json({
@@ -24,15 +39,31 @@ async function getIssuesController(req, res) {
       data: result,
     });
   } catch (error) {
-    const status = error.statusCode || 500;
+    const status = error.statusCode || 400;
     return res.status(status).json({
       success: false,
-      message: error.message || 'Internal server error',
+      message: error.message || 'Failed to load issues',
     });
   }
 }
 
-async function getIssueByIdController(req, res) {
+async function getAllMyIssuesController(req, res, next) {
+  try {
+    const result = await issueService.getAllMyIssues(req.user.id, req.query);
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    const status = error.statusCode || 400;
+    return res.status(status).json({
+      success: false,
+      message: error.message || 'Failed to load workspace issues',
+    });
+  }
+}
+
+async function getIssueByIdController(req, res, next) {
   try {
     const issue = await issueService.getIssueById(req.user.id, req.params.id);
     return res.status(200).json({
@@ -40,103 +71,126 @@ async function getIssueByIdController(req, res) {
       data: issue,
     });
   } catch (error) {
-    const status = error.statusCode || 500;
+    const status = error.statusCode || 400;
     return res.status(status).json({
       success: false,
-      message: error.message || 'Internal server error',
+      message: error.message || 'Issue not found',
     });
   }
 }
 
-async function updateIssueController(req, res) {
+async function updateIssueController(req, res, next) {
   try {
-    const allowedKeys = ['title', 'description', 'dueDate'];
-    const bodyKeys = Object.keys(req.body || {});
-    const disallowedKeys = bodyKeys.filter((key) => !allowedKeys.includes(key));
-    if (disallowedKeys.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Fields [${disallowedKeys.join(', ')}] cannot be updated on this endpoint. Use dedicated endpoints for status, priority, or assignment.`,
-      });
-    }
-
-    const issue = await issueService.updateIssue(req.user.id, req.params.id, req.body);
+    const validatedData = updateIssueSchema.parse(req.body);
+    const issue = await issueService.updateIssue(req.user.id, req.params.id, validatedData);
     return res.status(200).json({
       success: true,
+      message: 'Issue updated successfully',
       data: issue,
     });
   } catch (error) {
-    const status = error.statusCode || 500;
+    if (error.name === 'ZodError' || error.issues) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues?.[0]?.message || error.errors?.[0]?.message || 'Validation error',
+      });
+    }
+    const status = error.statusCode || 400;
     return res.status(status).json({
       success: false,
-      message: error.message || 'Internal server error',
+      message: error.message || 'Failed to update issue',
     });
   }
 }
 
-async function deleteIssueController(req, res) {
+async function deleteIssueController(req, res, next) {
   try {
     await issueService.deleteIssue(req.user.id, req.params.id);
     return res.status(200).json({
       success: true,
-      data: { message: 'Issue deleted successfully' },
+      message: 'Issue deleted successfully',
     });
   } catch (error) {
-    const status = error.statusCode || 500;
+    const status = error.statusCode || 400;
     return res.status(status).json({
       success: false,
-      message: error.message || 'Internal server error',
+      message: error.message || 'Failed to delete issue',
     });
   }
 }
 
-async function assignIssueController(req, res) {
+async function assignIssueController(req, res, next) {
   try {
-    const { assigneeId } = req.body || {};
-    const issue = await issueService.assignIssue(req.user.id, req.params.id, assigneeId !== undefined ? assigneeId : null);
+    const validatedData = assignIssueSchema.parse(req.body);
+    const issue = await issueService.assignIssue(
+      req.user.id,
+      req.params.id,
+      validatedData.assigneeId !== undefined ? validatedData.assigneeId : null
+    );
     return res.status(200).json({
       success: true,
+      message: 'Assignee updated successfully',
       data: issue,
     });
   } catch (error) {
-    const status = error.statusCode || 500;
+    if (error.name === 'ZodError' || error.issues) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues?.[0]?.message || error.errors?.[0]?.message || 'Validation error',
+      });
+    }
+    const status = error.statusCode || 400;
     return res.status(status).json({
       success: false,
-      message: error.message || 'Internal server error',
+      message: error.message || 'Failed to assign issue',
     });
   }
 }
 
-async function updateIssueStatusController(req, res) {
+async function updateIssueStatusController(req, res, next) {
   try {
-    const { status } = req.body || {};
-    const issue = await issueService.updateIssueStatus(req.user.id, req.params.id, status);
+    const validatedData = updateStatusSchema.parse(req.body);
+    const issue = await issueService.updateIssueStatus(req.user.id, req.params.id, validatedData.status);
     return res.status(200).json({
       success: true,
+      message: 'Status updated successfully',
       data: issue,
     });
   } catch (error) {
-    const errStatus = error.statusCode || 500;
-    return res.status(errStatus).json({
+    if (error.name === 'ZodError' || error.issues) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues?.[0]?.message || error.errors?.[0]?.message || 'Validation error',
+      });
+    }
+    const status = error.statusCode || 400;
+    return res.status(status).json({
       success: false,
-      message: error.message || 'Internal server error',
+      message: error.message || 'Failed to update issue status',
     });
   }
 }
 
-async function updateIssuePriorityController(req, res) {
+async function updateIssuePriorityController(req, res, next) {
   try {
-    const { priority } = req.body || {};
-    const issue = await issueService.updateIssuePriority(req.user.id, req.params.id, priority);
+    const validatedData = updatePrioritySchema.parse(req.body);
+    const issue = await issueService.updateIssuePriority(req.user.id, req.params.id, validatedData.priority);
     return res.status(200).json({
       success: true,
+      message: 'Priority updated successfully',
       data: issue,
     });
   } catch (error) {
-    const errStatus = error.statusCode || 500;
-    return res.status(errStatus).json({
+    if (error.name === 'ZodError' || error.issues) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues?.[0]?.message || error.errors?.[0]?.message || 'Validation error',
+      });
+    }
+    const status = error.statusCode || 400;
+    return res.status(status).json({
       success: false,
-      message: error.message || 'Internal server error',
+      message: error.message || 'Failed to update issue priority',
     });
   }
 }
@@ -144,6 +198,7 @@ async function updateIssuePriorityController(req, res) {
 module.exports = {
   createIssueController,
   getIssuesController,
+  getAllMyIssuesController,
   getIssueByIdController,
   updateIssueController,
   deleteIssueController,

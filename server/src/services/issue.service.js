@@ -1,15 +1,9 @@
 const prisma = require('../config/prismaClient');
 const logActivity = require('../utils/activityLogger');
-
-const VALID_STATUSES = ['TODO', 'IN_PROGRESS', 'DONE'];
-const VALID_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+const { VALID_STATUSES, VALID_PRIORITIES } = require('../validations/issue.validation');
 
 /**
  * Verify that a project exists and that a user is a member of it.
- * @param {string} projectId - Project ID
- * @param {string} userId - User ID
- * @returns {Promise<Object>} ProjectMember record
- * @throws {Error} 404 if project does not exist, 403 if user is not a member
  */
 async function verifyProjectMember(projectId, userId) {
   const project = await prisma.project.findUnique({
@@ -39,44 +33,25 @@ async function verifyProjectMember(projectId, userId) {
 
 /**
  * Create a new issue within a project.
- * @param {string} userId - Reporter user ID
- * @param {string} projectId - Target project ID
- * @param {Object} data - Issue creation payload
- * @returns {Promise<Object>} Created issue object
- * @throws {Error} 400 on validation error, 403 if not member, 404 if project not found
  */
 async function createIssue(userId, projectId, data) {
   await verifyProjectMember(projectId, userId);
 
-  const { title, description, priority = 'MEDIUM', dueDate } = data;
-
-  if (!title || typeof title !== 'string' || title.trim().length === 0 || title.trim().length > 200) {
-    const error = new Error('Title is required and must be between 1 and 200 characters');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (description && (typeof description !== 'string' || description.length > 5000)) {
-    const error = new Error('Description must not exceed 5000 characters');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (priority && !VALID_PRIORITIES.includes(priority)) {
-    const error = new Error(`Invalid priority. Allowed values: ${VALID_PRIORITIES.join(', ')}`);
-    error.statusCode = 400;
-    throw error;
-  }
+  const { title, description, priority = 'MEDIUM', dueDate, tags = [] } = data;
 
   let parsedDueDate = null;
   if (dueDate) {
     parsedDueDate = new Date(dueDate);
     if (isNaN(parsedDueDate.getTime())) {
-      const error = new Error('Invalid dueDate format. Must be a valid ISO date');
+      const error = new Error('Invalid dueDate format');
       error.statusCode = 400;
       throw error;
     }
   }
+
+  const cleanTags = Array.isArray(tags)
+    ? tags.map((t) => String(t).trim()).filter((t) => t.length > 0)
+    : [];
 
   return await prisma.$transaction(async (tx) => {
     const issue = await tx.issue.create({
@@ -86,12 +61,15 @@ async function createIssue(userId, projectId, data) {
         status: 'TODO',
         priority,
         dueDate: parsedDueDate,
+        tags: cleanTags,
+        resolvedAt: null,
         projectId,
         reporterId: userId,
       },
       include: {
-        reporter: { select: { id: true, name: true } },
-        assignee: { select: { id: true, name: true } },
+        reporter: { select: { id: true, name: true, email: true } },
+        assignee: { select: { id: true, name: true, email: true } },
+        project: { select: { id: true, title: true } },
       },
     });
 
@@ -101,7 +79,8 @@ async function createIssue(userId, projectId, data) {
         action: 'ISSUE_CREATED',
         entityType: 'ISSUE',
         entityId: issue.id,
-        metadata: { title: issue.title, priority: issue.priority },
+        projectId,
+        metadata: { title: issue.title, priority: issue.priority, tags: cleanTags },
       },
       tx
     );
@@ -111,65 +90,173 @@ async function createIssue(userId, projectId, data) {
 }
 
 /**
- * List issues for a project with filtering and pagination.
- * @param {string} userId - Requesting user ID
- * @param {string} projectId - Project ID
- * @param {Object} queryParams - Query params for filtering/pagination
- * @returns {Promise<Object>} Object containing issues list, page, pages, and total count
- * @throws {Error} 400 on invalid query params, 403 if not member, 404 if project not found
+ * List issues for a project with filtering, search, sorting, and pagination.
  */
 async function getIssues(userId, projectId, queryParams) {
   await verifyProjectMember(projectId, userId);
 
-  const { status, priority, assigneeId, search, page = 1, limit = 20 } = queryParams;
+  const {
+    status,
+    priority,
+    assigneeId,
+    reporterId,
+    tag,
+    search,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+    page = 1,
+    limit = 20,
+  } = queryParams;
 
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
   const whereConditions = [{ projectId }];
 
-  if (status) {
-    if (!VALID_STATUSES.includes(status)) {
-      const error = new Error(`Invalid status filter. Allowed values: ${VALID_STATUSES.join(', ')}`);
-      error.statusCode = 400;
-      throw error;
-    }
+  if (status && VALID_STATUSES.includes(status)) {
     whereConditions.push({ status });
   }
 
-  if (priority) {
-    if (!VALID_PRIORITIES.includes(priority)) {
-      const error = new Error(`Invalid priority filter. Allowed values: ${VALID_PRIORITIES.join(', ')}`);
-      error.statusCode = 400;
-      throw error;
-    }
+  if (priority && VALID_PRIORITIES.includes(priority)) {
     whereConditions.push({ priority });
   }
 
   if (assigneeId) {
-    whereConditions.push({ assigneeId });
+    if (assigneeId === 'unassigned') {
+      whereConditions.push({ assigneeId: null });
+    } else {
+      whereConditions.push({ assigneeId });
+    }
+  }
+
+  if (reporterId) {
+    whereConditions.push({ reporterId });
+  }
+
+  if (tag && typeof tag === 'string' && tag.trim() !== '') {
+    whereConditions.push({
+      tags: { has: tag.trim() },
+    });
   }
 
   if (search && typeof search === 'string' && search.trim() !== '') {
     const searchStr = search.trim();
     whereConditions.push({
-      title: { contains: searchStr, mode: 'insensitive' },
+      OR: [
+        { title: { contains: searchStr, mode: 'insensitive' } },
+        { description: { contains: searchStr, mode: 'insensitive' } },
+      ],
     });
   }
 
   const where = { AND: whereConditions };
-
   const skip = (pageNum - 1) * limitNum;
+
+  const validSortFields = ['createdAt', 'updatedAt', 'dueDate', 'priority', 'status', 'title'];
+  const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+  const orderDirection = sortOrder === 'asc' ? 'asc' : 'desc';
 
   const [issues, total] = await Promise.all([
     prisma.issue.findMany({
       where,
       skip,
       take: limitNum,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { [sortField]: orderDirection },
+      include: {
+        reporter: { select: { id: true, name: true, email: true } },
+        assignee: { select: { id: true, name: true, email: true } },
+        _count: { select: { comments: true } },
+      },
+    }),
+    prisma.issue.count({ where }),
+  ]);
+
+  const pages = Math.ceil(total / limitNum) || (total === 0 ? 0 : 1);
+
+  return {
+    issues,
+    page: pageNum,
+    pages,
+    total,
+  };
+}
+
+/**
+ * Get all issues across all projects the user is a member of (workspace-wide feed).
+ */
+async function getAllMyIssues(userId, queryParams) {
+  const userProjects = await prisma.projectMember.findMany({
+    where: { userId },
+    select: { projectId: true },
+  });
+
+  const projectIds = userProjects.map((p) => p.projectId);
+  if (projectIds.length === 0) {
+    return { issues: [], page: 1, pages: 0, total: 0 };
+  }
+
+  const {
+    status,
+    priority,
+    assigneeId,
+    search,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+    page = 1,
+    limit = 20,
+  } = queryParams;
+
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+
+  const whereConditions = [{ projectId: { in: projectIds } }];
+
+  if (status && VALID_STATUSES.includes(status)) {
+    whereConditions.push({ status });
+  }
+
+  if (priority && VALID_PRIORITIES.includes(priority)) {
+    whereConditions.push({ priority });
+  }
+
+  if (assigneeId) {
+    if (assigneeId === 'me') {
+      whereConditions.push({ assigneeId: userId });
+    } else if (assigneeId === 'unassigned') {
+      whereConditions.push({ assigneeId: null });
+    } else {
+      whereConditions.push({ assigneeId });
+    }
+  }
+
+  if (search && typeof search === 'string' && search.trim() !== '') {
+    const searchStr = search.trim();
+    whereConditions.push({
+      OR: [
+        { title: { contains: searchStr, mode: 'insensitive' } },
+        { description: { contains: searchStr, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  const where = { AND: whereConditions };
+  const skip = (pageNum - 1) * limitNum;
+
+  const validSortFields = ['createdAt', 'updatedAt', 'dueDate', 'priority', 'status', 'title'];
+  const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+  const orderDirection = sortOrder === 'asc' ? 'asc' : 'desc';
+
+  const [issues, total] = await Promise.all([
+    prisma.issue.findMany({
+      where,
+      skip,
+      take: limitNum,
+      orderBy: { [sortField]: orderDirection },
       include: {
         reporter: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true } },
+        project: { select: { id: true, title: true } },
+        _count: { select: { comments: true } },
       },
     }),
     prisma.issue.count({ where }),
@@ -187,17 +274,24 @@ async function getIssues(userId, projectId, queryParams) {
 
 /**
  * Get a single issue by ID.
- * @param {string} userId - Requesting user ID
- * @param {string} issueId - Issue ID
- * @returns {Promise<Object>} Issue object with reporter, assignee, and comment count
- * @throws {Error} 404 if issue/project not found, 403 if user not project member
  */
 async function getIssueById(userId, issueId) {
   const issue = await prisma.issue.findUnique({
     where: { id: issueId },
     include: {
-      reporter: { select: { id: true, name: true } },
-      assignee: { select: { id: true, name: true } },
+      reporter: { select: { id: true, name: true, email: true } },
+      assignee: { select: { id: true, name: true, email: true } },
+      project: {
+        select: {
+          id: true,
+          title: true,
+          members: {
+            include: {
+              user: { select: { id: true, name: true, email: true } },
+            },
+          },
+        },
+      },
       _count: { select: { comments: true } },
     },
   });
@@ -214,12 +308,7 @@ async function getIssueById(userId, issueId) {
 }
 
 /**
- * Update issue fields (title, description, dueDate).
- * @param {string} userId - User ID updating issue
- * @param {string} issueId - Target issue ID
- * @param {Object} data - Payload containing fields to update
- * @returns {Promise<Object>} Updated issue object
- * @throws {Error} 400 on invalid input, 404 if issue not found, 403 if user not member
+ * Update issue fields.
  */
 async function updateIssue(userId, issueId, data) {
   const existingIssue = await prisma.issue.findUnique({
@@ -234,17 +323,11 @@ async function updateIssue(userId, issueId, data) {
 
   await verifyProjectMember(existingIssue.projectId, userId);
 
-  const { title, description, dueDate } = data;
-
+  const { title, description, priority, dueDate, tags } = data;
   const updateData = {};
   const changedFields = {};
 
   if (title !== undefined) {
-    if (typeof title !== 'string' || title.trim().length === 0 || title.trim().length > 200) {
-      const error = new Error('Title must be between 1 and 200 characters');
-      error.statusCode = 400;
-      throw error;
-    }
     if (title.trim() !== existingIssue.title) {
       updateData.title = title.trim();
       changedFields.title = { from: existingIssue.title, to: title.trim() };
@@ -252,15 +335,17 @@ async function updateIssue(userId, issueId, data) {
   }
 
   if (description !== undefined) {
-    if (description !== null && (typeof description !== 'string' || description.length > 5000)) {
-      const error = new Error('Description must not exceed 5000 characters');
-      error.statusCode = 400;
-      throw error;
-    }
     const newDesc = description ? description.trim() : null;
     if (newDesc !== existingIssue.description) {
       updateData.description = newDesc;
       changedFields.description = { changed: true };
+    }
+  }
+
+  if (priority !== undefined && VALID_PRIORITIES.includes(priority)) {
+    if (priority !== existingIssue.priority) {
+      updateData.priority = priority;
+      changedFields.priority = { from: existingIssue.priority, to: priority };
     }
   }
 
@@ -282,6 +367,12 @@ async function updateIssue(userId, issueId, data) {
     }
   }
 
+  if (tags !== undefined && Array.isArray(tags)) {
+    const cleanTags = tags.map((t) => String(t).trim()).filter((t) => t.length > 0);
+    updateData.tags = cleanTags;
+    changedFields.tags = cleanTags;
+  }
+
   if (Object.keys(updateData).length === 0) {
     return existingIssue;
   }
@@ -293,6 +384,7 @@ async function updateIssue(userId, issueId, data) {
       include: {
         reporter: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true } },
+        project: { select: { id: true, title: true } },
       },
     });
 
@@ -302,6 +394,7 @@ async function updateIssue(userId, issueId, data) {
         action: 'ISSUE_UPDATED',
         entityType: 'ISSUE',
         entityId: issueId,
+        projectId: existingIssue.projectId,
         metadata: changedFields,
       },
       tx
@@ -313,10 +406,6 @@ async function updateIssue(userId, issueId, data) {
 
 /**
  * Delete an issue. Restricted to project OWNER or ADMIN role.
- * @param {string} userId - User ID requesting deletion
- * @param {string} issueId - Issue ID to delete
- * @returns {Promise<void>}
- * @throws {Error} 404 if issue not found, 403 if not OWNER/ADMIN
  */
 async function deleteIssue(userId, issueId) {
   const existingIssue = await prisma.issue.findUnique({
@@ -344,6 +433,7 @@ async function deleteIssue(userId, issueId) {
         action: 'ISSUE_DELETED',
         entityType: 'PROJECT',
         entityId: existingIssue.projectId,
+        projectId: existingIssue.projectId,
         metadata: { issueId, title: existingIssue.title },
       },
       tx
@@ -357,11 +447,6 @@ async function deleteIssue(userId, issueId) {
 
 /**
  * Assign an issue to a project member.
- * @param {string} userId - Requesting user ID
- * @param {string} issueId - Issue ID
- * @param {string|null} assigneeId - Assignee user ID or null to unassign
- * @returns {Promise<Object>} Updated issue object
- * @throws {Error} 400/404 if assignee user invalid/not project member, 403 if requester not member
  */
 async function assignIssue(userId, issueId, assigneeId) {
   const existingIssue = await prisma.issue.findUnique({
@@ -379,15 +464,6 @@ async function assignIssue(userId, issueId, assigneeId) {
   let targetAssigneeId = null;
 
   if (assigneeId) {
-    const assigneeUser = await prisma.user.findUnique({
-      where: { id: assigneeId },
-    });
-    if (!assigneeUser) {
-      const error = new Error('Assignee user not found');
-      error.statusCode = 404;
-      throw error;
-    }
-
     const assigneeMember = await prisma.projectMember.findUnique({
       where: {
         userId_projectId: {
@@ -395,6 +471,7 @@ async function assignIssue(userId, issueId, assigneeId) {
           projectId: existingIssue.projectId,
         },
       },
+      include: { user: { select: { name: true } } },
     });
     if (!assigneeMember) {
       const error = new Error('Assignee must be a member of the project');
@@ -415,6 +492,7 @@ async function assignIssue(userId, issueId, assigneeId) {
       include: {
         reporter: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true } },
+        project: { select: { id: true, title: true } },
       },
     });
 
@@ -424,6 +502,7 @@ async function assignIssue(userId, issueId, assigneeId) {
         action: 'ISSUE_ASSIGNED',
         entityType: 'ISSUE',
         entityId: issueId,
+        projectId: existingIssue.projectId,
         metadata: { from: existingIssue.assigneeId, to: targetAssigneeId },
       },
       tx
@@ -434,12 +513,7 @@ async function assignIssue(userId, issueId, assigneeId) {
 }
 
 /**
- * Change issue status.
- * @param {string} userId - Requesting user ID
- * @param {string} issueId - Issue ID
- * @param {string} status - New status string
- * @returns {Promise<Object>} Updated issue object
- * @throws {Error} 400 on invalid status enum, 404 if issue not found, 403 if user not member
+ * Change issue status and manage resolvedAt timestamp.
  */
 async function updateIssueStatus(userId, issueId, status) {
   if (!status || !VALID_STATUSES.includes(status)) {
@@ -464,13 +538,19 @@ async function updateIssueStatus(userId, issueId, status) {
     return existingIssue;
   }
 
+  const resolvedAt = status === 'DONE' ? new Date() : (existingIssue.status === 'DONE' ? null : existingIssue.resolvedAt);
+
   return await prisma.$transaction(async (tx) => {
     const updatedIssue = await tx.issue.update({
       where: { id: issueId },
-      data: { status },
+      data: {
+        status,
+        resolvedAt,
+      },
       include: {
         reporter: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true } },
+        project: { select: { id: true, title: true } },
       },
     });
 
@@ -480,6 +560,7 @@ async function updateIssueStatus(userId, issueId, status) {
         action: 'STATUS_CHANGED',
         entityType: 'ISSUE',
         entityId: issueId,
+        projectId: existingIssue.projectId,
         metadata: { from: existingIssue.status, to: status },
       },
       tx
@@ -491,11 +572,6 @@ async function updateIssueStatus(userId, issueId, status) {
 
 /**
  * Change issue priority.
- * @param {string} userId - Requesting user ID
- * @param {string} issueId - Issue ID
- * @param {string} priority - New priority string
- * @returns {Promise<Object>} Updated issue object
- * @throws {Error} 400 on invalid priority enum, 404 if issue not found, 403 if user not member
  */
 async function updateIssuePriority(userId, issueId, priority) {
   if (!priority || !VALID_PRIORITIES.includes(priority)) {
@@ -527,6 +603,7 @@ async function updateIssuePriority(userId, issueId, priority) {
       include: {
         reporter: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true } },
+        project: { select: { id: true, title: true } },
       },
     });
 
@@ -536,6 +613,7 @@ async function updateIssuePriority(userId, issueId, priority) {
         action: 'PRIORITY_CHANGED',
         entityType: 'ISSUE',
         entityId: issueId,
+        projectId: existingIssue.projectId,
         metadata: { from: existingIssue.priority, to: priority },
       },
       tx
@@ -549,6 +627,7 @@ module.exports = {
   verifyProjectMember,
   createIssue,
   getIssues,
+  getAllMyIssues,
   getIssueById,
   updateIssue,
   deleteIssue,

@@ -2,6 +2,7 @@ const express = require('express');
 const {
   createIssueController,
   getIssuesController,
+  getAllMyIssuesController,
   getIssueByIdController,
   updateIssueController,
   deleteIssueController,
@@ -14,6 +15,9 @@ const authMiddleware = require('../middleware/auth.middleware');
 const router = express.Router();
 
 router.use(authMiddleware);
+
+// Workspace-level issues list
+router.get('/issues', getAllMyIssuesController);
 
 // Project-scoped issue routes
 router.post('/projects/:projectId/issues', createIssueController);

@@ -41,6 +41,7 @@ model Project {
   updatedAt   DateTime        @updatedAt
   members     ProjectMember[]
   issues      Issue[]
+  activityLogs ActivityLog[]
 }
 
 model ProjectMember {
@@ -77,6 +78,8 @@ model Issue {
   status      IssueStatus   @default(TODO)
   priority    IssuePriority @default(MEDIUM)
   dueDate     DateTime?
+  tags        String[]      @default([])
+  resolvedAt  DateTime?
   projectId   String
   reporterId  String
   assigneeId  String?
@@ -92,6 +95,9 @@ model Issue {
   @@index([assigneeId])
   @@index([reporterId])
   @@index([status])
+  @@index([projectId, status])
+  @@index([projectId, priority])
+  @@index([projectId, createdAt])
 }
 
 model Comment {
@@ -115,11 +121,15 @@ model ActivityLog {
   action     String
   entityType String
   entityId   String
+  projectId  String?
   metadata   Json?
   createdAt  DateTime @default(now())
 
-  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([entityId])
   @@index([userId])
+  @@index([projectId])
+  @@index([createdAt])
 }
