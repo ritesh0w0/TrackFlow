@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = import.meta.env.PROD
+  ? '/trackflow/api'
+  : (import.meta.env.VITE_API_URL || 'http://localhost:3000/api');
 
 const api = axios.create({
   baseURL: API_URL,
@@ -33,8 +35,10 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('trackflow_token');
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
-        window.location.href = '/login';
+      const baseUrl = import.meta.env.BASE_URL || '/';
+      const loginPath = baseUrl.endsWith('/') ? `${baseUrl}login` : `${baseUrl}/login`;
+      if (!window.location.pathname.endsWith('/login') && !window.location.pathname.endsWith('/signup')) {
+        window.location.href = loginPath;
       }
     }
     return Promise.reject(error);

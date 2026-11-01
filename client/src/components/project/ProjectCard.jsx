@@ -3,12 +3,16 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import ProjectFormDialog from './ProjectFormDialog';
 import DeleteProjectDialog from './DeleteProjectDialog';
+import { ArrowRight } from 'lucide-react';
 
 export default function ProjectCard({ project, currentUserId }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  const isOwner = project.createdById === currentUserId;
+  // UI-06: Permission-aware UI based on role
+  const role = project.currentUserRole || (project.createdById === currentUserId ? 'OWNER' : 'MEMBER');
+  const canEdit = role === 'OWNER' || role === 'ADMIN';
+  const canDelete = role === 'OWNER';
 
   return (
     <>
@@ -21,11 +25,9 @@ export default function ProjectCard({ project, currentUserId }) {
             >
               {project.title || project.name}
             </Link>
-            {isOwner && (
-              <span className="text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded font-mono font-medium">
-                OWNER
-              </span>
-            )}
+            <span className="text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded font-mono font-medium shrink-0">
+              {role}
+            </span>
           </div>
           <p className="text-xs text-zinc-400 line-clamp-2 min-h-[2rem]">
             {project.description || 'No description provided.'}
@@ -38,43 +40,52 @@ export default function ProjectCard({ project, currentUserId }) {
           </span>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsEditOpen(true)}
-              className="h-7 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 px-2"
-            >
-              Edit
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsDeleteOpen(true)}
-              className="h-7 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 px-2"
-            >
-              Delete
-            </Button>
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditOpen(true)}
+                className="h-7 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 px-2"
+              >
+                Edit
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsDeleteOpen(true)}
+                className="h-7 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 px-2"
+              >
+                Delete
+              </Button>
+            )}
             <Link to={`/projects/${project.id}`}>
-              <Button size="sm" className="h-7 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-2.5">
-                Open →
+              <Button size="sm" className="h-7 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-2.5 flex items-center gap-1">
+                Open
+                <ArrowRight className="w-3 h-3" />
               </Button>
             </Link>
           </div>
         </div>
       </div>
 
-      <ProjectFormDialog
-        open={isEditOpen}
-        onOpenChange={setIsEditOpen}
-        initialValues={project}
-        mode="edit"
-      />
+      {canEdit && (
+        <ProjectFormDialog
+          open={isEditOpen}
+          onOpenChange={setIsEditOpen}
+          initialValues={project}
+          mode="edit"
+        />
+      )}
 
-      <DeleteProjectDialog
-        open={isDeleteOpen}
-        onOpenChange={setIsDeleteOpen}
-        project={project}
-      />
+      {canDelete && (
+        <DeleteProjectDialog
+          open={isDeleteOpen}
+          onOpenChange={setIsDeleteOpen}
+          project={project}
+        />
+      )}
     </>
   );
 }

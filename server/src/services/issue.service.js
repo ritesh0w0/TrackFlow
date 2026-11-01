@@ -4,17 +4,12 @@ const { VALID_STATUSES, VALID_PRIORITIES } = require('../validations/issue.valid
 
 /**
  * Verify that a project exists and that a user is a member of it.
+ * Optimized single-query fast path for valid memberships:
+ * Fetches membership with project relation attached in 1 query.
+ * Falls back to project existence check only when membership is not found
+ * to accurately distinguish 404 (Project not found) from 403 (Forbidden).
  */
 async function verifyProjectMember(projectId, userId) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-  });
-  if (!project) {
-    const error = new Error('Project not found');
-    error.statusCode = 404;
-    throw error;
-  }
-
   const member = await prisma.projectMember.findUnique({
     where: {
       userId_projectId: {
@@ -22,13 +17,38 @@ async function verifyProjectMember(projectId, userId) {
         projectId,
       },
     },
+    include: {
+      project: {
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          createdAt: true,
+          createdById: true,
+        },
+      },
+    },
   });
-  if (!member) {
-    const error = new Error('Forbidden: You are not a member of this project');
-    error.statusCode = 403;
+
+  if (member) {
+    return member;
+  }
+
+  // Not a member: distinguish project existence (404 vs 403)
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true },
+  });
+
+  if (!project) {
+    const error = new Error('Project not found');
+    error.statusCode = 404;
     throw error;
   }
-  return member;
+
+  const error = new Error('Forbidden: You are not a member of this project');
+  error.statusCode = 403;
+  throw error;
 }
 
 /**

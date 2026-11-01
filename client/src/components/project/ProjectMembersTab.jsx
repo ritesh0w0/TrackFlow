@@ -5,7 +5,7 @@ import {
   useUpdateProjectMemberRole,
   useRemoveProjectMember,
 } from '@/hooks/useProjects';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/useAuth';
 import AddMemberDialog from './AddMemberDialog';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';

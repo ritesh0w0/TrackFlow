@@ -98,7 +98,6 @@ async function getProjectById(userId, projectId) {
       _count: {
         select: {
           issues: true,
-          members: true,
         },
       },
     },
@@ -119,6 +118,10 @@ async function getProjectById(userId, projectId) {
 
   return {
     ...project,
+    _count: {
+      issues: project._count.issues,
+      members: project.members.length,
+    },
     currentUserRole: membership.role,
   };
 }
@@ -301,6 +304,11 @@ async function addProjectMember(userId, projectId, { email, role = 'MEMBER' }) {
 
 /**
  * Update a project member's role.
+ * Enforces strict role hierarchy and prevents privilege escalation:
+ * - Only project OWNER or ADMIN may update roles.
+ * - Only project OWNER can assign or transfer the OWNER role.
+ * - Only project OWNER can modify an existing OWNER's role.
+ * - Ownership transfer is atomic: the previous owner is demoted to ADMIN and the new owner is promoted to OWNER.
  */
 async function updateProjectMemberRole(userId, projectId, memberId, { role }) {
   const requesterMember = await prisma.projectMember.findUnique({
@@ -318,6 +326,13 @@ async function updateProjectMemberRole(userId, projectId, memberId, { role }) {
     throw error;
   }
 
+  // Privilege escalation check: ADMIN or MEMBER cannot assign the OWNER role
+  if (role === 'OWNER' && requesterMember.role !== 'OWNER') {
+    const error = new Error('Forbidden: Only the project OWNER can transfer ownership');
+    error.statusCode = 403;
+    throw error;
+  }
+
   const targetMember = await prisma.projectMember.findUnique({
     where: { id: memberId },
     include: { user: { select: { name: true } } },
@@ -329,13 +344,39 @@ async function updateProjectMemberRole(userId, projectId, memberId, { role }) {
     throw error;
   }
 
+  // Only the OWNER can modify the role of an existing OWNER
   if (targetMember.role === 'OWNER' && requesterMember.role !== 'OWNER') {
-    const error = new Error('Forbidden: Only the project OWNER can transfer ownership');
+    const error = new Error('Forbidden: Only the project OWNER can modify the owner role');
     error.statusCode = 403;
     throw error;
   }
 
+  // If role is unchanged, return existing member
+  if (targetMember.role === role) {
+    return targetMember;
+  }
+
   return await prisma.$transaction(async (tx) => {
+    // If transferring ownership to another member, demote the current owner to ADMIN atomically
+    if (role === 'OWNER' && targetMember.id !== requesterMember.id) {
+      await tx.projectMember.update({
+        where: { id: requesterMember.id },
+        data: { role: 'ADMIN' },
+      });
+
+      await logActivity(
+        {
+          userId,
+          action: 'MEMBER_ROLE_UPDATED',
+          entityType: 'MEMBER',
+          entityId: requesterMember.id,
+          projectId,
+          metadata: { memberName: 'Self (Ownership Transfer)', from: 'OWNER', to: 'ADMIN' },
+        },
+        tx
+      );
+    }
+
     const updated = await tx.projectMember.update({
       where: { id: memberId },
       data: { role },

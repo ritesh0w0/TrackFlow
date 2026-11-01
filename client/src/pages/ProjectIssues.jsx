@@ -1,16 +1,14 @@
 import { useState } from 'react';
-import { useParams, useSearchParams, useOutletContext } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useIssues } from '@/hooks/useIssues';
 import IssueFilters from '@/components/issue/IssueFilters';
 import IssueTable from '@/components/issue/IssueTable';
 import IssueFormDialog from '@/components/issue/IssueFormDialog';
 import { Button } from '@/components/ui/button';
+import { Plus, CheckSquare, Search, FilterX } from 'lucide-react';
 
 export default function ProjectIssues() {
   const { projectId } = useParams();
-  const outletContext = useOutletContext();
-  const project = outletContext?.project;
-
   const [searchParams, setSearchParams] = useSearchParams();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -46,17 +44,18 @@ export default function ProjectIssues() {
       {/* Header Bar */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-white">Project Issues</h2>
-          <p className="text-xs text-slate-400">
+          <h2 className="text-lg font-bold text-zinc-100">Project Issues</h2>
+          <p className="text-xs text-zinc-400">
             {totalIssues} issue{totalIssues === 1 ? '' : 's'} total
           </p>
         </div>
 
         <Button
           onClick={() => setIsCreateOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs"
+          className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 text-xs font-semibold flex items-center gap-1.5"
         >
-          + Create Issue
+          <Plus className="w-3.5 h-3.5" />
+          Create Issue
         </Button>
       </div>
 
@@ -65,11 +64,11 @@ export default function ProjectIssues() {
 
       {/* Content States */}
       {isLoading ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 space-y-3 animate-pulse">
-          <div className="h-6 bg-slate-800 rounded w-1/4" />
-          <div className="h-10 bg-slate-800 rounded w-full" />
-          <div className="h-10 bg-slate-800 rounded w-full" />
-          <div className="h-10 bg-slate-800 rounded w-full" />
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 space-y-3 animate-pulse">
+          <div className="h-6 bg-zinc-800 rounded w-1/4" />
+          <div className="h-10 bg-zinc-800 rounded w-full" />
+          <div className="h-10 bg-zinc-800 rounded w-full" />
+          <div className="h-10 bg-zinc-800 rounded w-full" />
         </div>
       ) : isError ? (
         <div className="bg-red-950/50 border border-red-800 p-6 rounded-lg text-center space-y-3">
@@ -83,33 +82,37 @@ export default function ProjectIssues() {
       ) : issues.length === 0 ? (
         hasFiltersActive ? (
           /* Empty state: Filters match nothing */
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-12 text-center space-y-3">
-            <div className="text-2xl">🔍</div>
-            <h3 className="text-sm font-bold text-white">No issues match your filters</h3>
-            <p className="text-xs text-slate-400">Try clearing your search query or status/priority filters.</p>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center space-y-3">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700 mx-auto">
+              <Search className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-zinc-100">No issues match your filters</h3>
+            <p className="text-xs text-zinc-400">Try clearing your search query or status/priority filters.</p>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setSearchParams(new URLSearchParams())}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs"
+              className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs flex items-center gap-1 mx-auto"
             >
+              <FilterX className="w-3.5 h-3.5" />
               Clear All Filters
             </Button>
           </div>
         ) : (
           /* Empty state: Project has zero issues */
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-12 text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-800 text-indigo-400 font-bold text-xl">
-              🎯
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center space-y-4">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700 mx-auto">
+              <CheckSquare className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-bold text-white">No Issues Created Yet</h3>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            <h3 className="text-base font-bold text-zinc-100">No Issues Created Yet</h3>
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto">
               Get started by creating your first issue to assign tasks and track resolution status.
             </p>
             <Button
               onClick={() => setIsCreateOpen(true)}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs"
+              className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 text-xs font-semibold mx-auto flex items-center gap-1.5"
             >
+              <Plus className="w-3.5 h-3.5" />
               Create First Issue
             </Button>
           </div>
@@ -121,9 +124,9 @@ export default function ProjectIssues() {
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-between text-xs text-zinc-400 pt-2 border-t border-zinc-800">
               <span>
-                Page <strong className="text-slate-200">{page}</strong> of <strong className="text-slate-200">{totalPages}</strong>
+                Page <strong className="text-zinc-200">{page}</strong> of <strong className="text-zinc-200">{totalPages}</strong>
               </span>
 
               <div className="flex items-center gap-2">
@@ -132,7 +135,7 @@ export default function ProjectIssues() {
                   size="sm"
                   disabled={page <= 1}
                   onClick={() => setPage(page - 1)}
-                  className="bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 text-xs h-8"
+                  className="bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 text-xs h-8"
                 >
                   ← Previous
                 </Button>
@@ -141,7 +144,7 @@ export default function ProjectIssues() {
                   size="sm"
                   disabled={page >= totalPages}
                   onClick={() => setPage(page + 1)}
-                  className="bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 text-xs h-8"
+                  className="bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 text-xs h-8"
                 >
                   Next →
                 </Button>

@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { MoreVertical, Calendar, AlertTriangle, MessageSquare } from 'lucide-react';
 
 export default function KanbanCard({ issue, projectId, onStatusChange }) {
   const isOverdue =
@@ -26,10 +27,10 @@ export default function KanbanCard({ issue, projectId, onStatusChange }) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 w-6 p-0 text-zinc-400 hover:text-white rounded"
+                className="h-6 w-6 p-0 text-zinc-400 hover:text-white rounded flex items-center justify-center cursor-pointer"
                 title="Move status"
               >
-                <span className="text-xs">⋮</span>
+                <MoreVertical className="w-3.5 h-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-36 bg-zinc-900 border-zinc-800 text-xs">
@@ -91,12 +92,16 @@ export default function KanbanCard({ issue, projectId, onStatusChange }) {
       <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-1 border-t border-zinc-800/80">
         {issue.dueDate ? (
           <span
-            className={`font-mono text-[10px] ${
+            className={`font-mono text-[10px] flex items-center gap-1 ${
               isOverdue ? 'text-rose-400 font-bold' : 'text-zinc-500'
             }`}
             title={isOverdue ? 'Overdue' : 'Due date'}
           >
-            {isOverdue ? '⚠️ ' : '📅 '}
+            {isOverdue ? (
+              <AlertTriangle className="w-3 h-3 text-rose-400" />
+            ) : (
+              <Calendar className="w-3 h-3 text-zinc-500" />
+            )}
             {new Date(issue.dueDate).toLocaleDateString()}
           </span>
         ) : (
@@ -104,9 +109,10 @@ export default function KanbanCard({ issue, projectId, onStatusChange }) {
         )}
 
         <div className="flex items-center gap-1.5">
-          {issue.comments && issue.comments.length > 0 && (
+          {issue._count?.comments > 0 && (
             <span className="text-[10px] text-zinc-500 flex items-center gap-0.5" title="Comments">
-              💬 {issue.comments.length}
+              <MessageSquare className="w-3 h-3 text-zinc-500" />
+              {issue._count.comments}
             </span>
           )}
           <span

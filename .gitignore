@@ -1,18 +1,42 @@
 # Dependencies
-**/node_modules
+**/node_modules/
 
-# Environment Variables
+# Environment Variables & Secrets
 **/.env
+**/.env.*
+!**/.env.example
+
+# Production builds & artifacts
+dist/
+**/dist/
+dist-ssr/
+*.tar.gz
+
+# Automation & Local scratch scripts
+smoke-test.mjs
+scripts/capture-*.mjs
+test_smoke.ps1
 
 # Logs
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# OS Files
+# OS & Editor Files
 .DS_Store
 Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Prisma generated files (if needed later)
+# Prisma generated local databases
 **/prisma/dev.db
-
-# Build files
-dist/
+**/prisma/dev.db-journal

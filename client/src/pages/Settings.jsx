@@ -1,4 +1,4 @@
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/useAuth';
 import { useProjects } from '@/hooks/useProjects';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -9,9 +9,12 @@ export default function Settings() {
   const { user, logout } = useAuth();
   const { data: projects = [] } = useProjects();
 
+  const apiUrl = import.meta.env.PROD
+    ? (typeof window !== 'undefined' ? `${window.location.origin}/trackflow/api` : '/trackflow/api')
+    : (import.meta.env.VITE_API_URL || 'http://localhost:3000/api');
+
   const handleCopyApiUrl = () => {
-    const url = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-    navigator.clipboard.writeText(url);
+    navigator.clipboard.writeText(apiUrl);
     toast.success('API Base URL copied to clipboard');
   };
 
@@ -96,7 +99,7 @@ export default function Settings() {
             <input
               type="text"
               readOnly
-              value={import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}
+              value={apiUrl}
               className="w-full px-3 py-2 bg-zinc-950 border border-zinc-700/80 rounded-md font-mono text-xs text-zinc-200 select-all"
             />
             <Button

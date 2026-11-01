@@ -3,14 +3,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { signupSchema } from '@/validations/auth.schema';
-import { signup } from '@/services/auth.api';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/useAuth';
 import { Button } from '@/components/ui/button';
 
 export default function Signup() {
   const [apiError, setApiError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, signup } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -44,7 +43,7 @@ export default function Signup() {
     { label: 'One number (0-9)', valid: /\d/.test(passwordValue) },
     {
       label: 'One special character (!@#$%^&*...)',
-      valid: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(passwordValue),
+      valid: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(passwordValue),
     },
   ];
 
@@ -52,13 +51,12 @@ export default function Signup() {
     setApiError(null);
     setIsSubmitting(true);
     try {
+      // AuthContext signup establishes session and populates user state in a single call
       await signup({
         name: data.name,
         email: data.email,
         password: data.password,
       });
-      // Automatically log in after successful signup
-      await login({ email: data.email, password: data.password });
       navigate('/dashboard', { replace: true });
     } catch (error) {
       console.error('Signup error:', error);

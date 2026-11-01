@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useAllIssues } from '@/hooks/useIssues';
 import { useProjects } from '@/hooks/useProjects';
-import { useAuth } from '@/context/AuthContext';
+import { useDebounce } from '@/hooks/useDebounce';
 import IssueTable from '@/components/issue/IssueTable';
 import IssueFormDialog from '@/components/issue/IssueFormDialog';
 import { Button } from '@/components/ui/button';
+import { CheckSquare, Plus, Search, FilterX } from 'lucide-react';
 
 export default function Issues() {
-  const { user } = useAuth();
   const { data: projects = [] } = useProjects();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -18,14 +18,38 @@ export default function Issues() {
   const status = searchParams.get('status') || '';
   const priority = searchParams.get('priority') || '';
   const assigneeId = searchParams.get('assigneeId') || '';
-  const search = searchParams.get('search') || '';
+  const searchParam = searchParams.get('search') || '';
   const page = parseInt(searchParams.get('page') || '1', 10);
+
+  // PERF-06: Debounced search state
+  const [searchInput, setSearchInput] = useState(searchParam);
+  const debouncedSearch = useDebounce(searchInput, 300);
+
+  // Keep search input in sync if URL changes externally (e.g. filter clear)
+  useEffect(() => {
+    setSearchInput(searchParam);
+  }, [searchParam]);
+
+  // Push debounced search to URL query params
+  useEffect(() => {
+    const currentSearch = searchParams.get('search') || '';
+    if (debouncedSearch !== currentSearch) {
+      const params = new URLSearchParams(searchParams);
+      if (debouncedSearch) {
+        params.set('search', debouncedSearch);
+      } else {
+        params.delete('search');
+      }
+      params.set('page', '1');
+      setSearchParams(params, { replace: true });
+    }
+  }, [debouncedSearch, searchParams, setSearchParams]);
 
   const filterParams = {
     status: status || undefined,
     priority: priority || undefined,
     assigneeId: assigneeId || undefined,
-    search: search || undefined,
+    search: searchParam || undefined,
     page,
     limit: 15,
   };
@@ -53,7 +77,7 @@ export default function Issues() {
     setSearchParams(params);
   };
 
-  const hasFilters = Boolean(status || priority || assigneeId || search);
+  const hasFilters = Boolean(status || priority || assigneeId || searchParam);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -73,9 +97,10 @@ export default function Issues() {
                 setSelectedProjectId(projects[0]?.id || '');
                 setIsCreateOpen(true);
               }}
-              className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 text-xs font-semibold"
+              className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 text-xs font-semibold flex items-center gap-1.5"
             >
-              + New Issue
+              <Plus className="w-3.5 h-3.5" />
+              New Issue
             </Button>
           </div>
         )}
@@ -84,16 +109,19 @@ export default function Issues() {
       {/* Filter Bar */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-3 shadow-xs">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          {/* Search Box */}
+          {/* Search Box with instant typing and 300ms debounce */}
           <div>
             <label className="text-[11px] font-medium text-zinc-400 block mb-1">Search</label>
-            <input
-              type="text"
-              placeholder="Search by title or description..."
-              value={search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-              className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-700/80 rounded-md text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-400"
-            />
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search by title or description..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-700/80 rounded-md text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              />
+            </div>
           </div>
 
           {/* Status Filter */}
@@ -102,7 +130,7 @@ export default function Issues() {
             <select
               value={status}
               onChange={(e) => handleFilterChange('status', e.target.value)}
-              className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-700/80 rounded-md text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-700/80 rounded-md text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-400 cursor-pointer"
             >
               <option value="">All Statuses</option>
               <option value="TODO">To Do</option>
@@ -117,7 +145,7 @@ export default function Issues() {
             <select
               value={priority}
               onChange={(e) => handleFilterChange('priority', e.target.value)}
-              className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-700/80 rounded-md text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-700/80 rounded-md text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-400 cursor-pointer"
             >
               <option value="">All Priorities</option>
               <option value="CRITICAL">Critical</option>
@@ -133,7 +161,7 @@ export default function Issues() {
             <select
               value={assigneeId}
               onChange={(e) => handleFilterChange('assigneeId', e.target.value)}
-              className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-700/80 rounded-md text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-700/80 rounded-md text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-400 cursor-pointer"
             >
               <option value="">All Assignees</option>
               <option value="me">Assigned to Me</option>
@@ -147,9 +175,13 @@ export default function Issues() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSearchParams(new URLSearchParams())}
-              className="text-xs text-zinc-400 hover:text-white h-7 px-2"
+              onClick={() => {
+                setSearchInput('');
+                setSearchParams(new URLSearchParams());
+              }}
+              className="text-xs text-zinc-400 hover:text-white h-7 px-2 flex items-center gap-1"
             >
+              <FilterX className="w-3.5 h-3.5" />
               Clear All Filters
             </Button>
           </div>
@@ -174,7 +206,9 @@ export default function Issues() {
         </div>
       ) : issues.length === 0 ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center space-y-3">
-          <div className="text-2xl">🎯</div>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700 mx-auto">
+            <CheckSquare className="w-6 h-6" />
+          </div>
           <h3 className="text-sm font-bold text-zinc-100">
             {hasFilters ? 'No issues match the selected filters' : 'No issues found across your projects'}
           </h3>
@@ -187,7 +221,10 @@ export default function Issues() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setSearchParams(new URLSearchParams())}
+              onClick={() => {
+                setSearchInput('');
+                setSearchParams(new URLSearchParams());
+              }}
               className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs"
             >
               Reset Filters

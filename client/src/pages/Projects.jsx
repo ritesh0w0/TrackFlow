@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useProjects } from '@/hooks/useProjects';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/useAuth';
 import ProjectList from '@/components/project/ProjectList';
 import ProjectFormDialog from '@/components/project/ProjectFormDialog';
 import { Button } from '@/components/ui/button';

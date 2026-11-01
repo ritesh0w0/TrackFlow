@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { issueSchema } from '@/validations/issue.schema';
 import { useCreateIssue, useUpdateIssue } from '@/hooks/useIssues';
-import { useProjectMembers } from '@/hooks/useProjects';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +23,6 @@ export default function IssueFormDialog({
   const [apiError, setApiError] = useState(null);
   const createMutation = useCreateIssue();
   const updateMutation = useUpdateIssue();
-  const { data: members = [] } = useProjectMembers(projectId);
 
   const isEdit = mode === 'edit';
 

@@ -1,4 +1,4 @@
-import { useOutletContext, Link } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { useProjectDashboard } from '@/hooks/useDashboard';
 import StatCard from '@/components/dashboard/StatCard';
 import IssueStatusChart from '@/components/dashboard/IssueStatusChart';
@@ -7,6 +7,7 @@ import WorkloadChart from '@/components/dashboard/WorkloadChart';
 import RecentIssues from '@/components/dashboard/RecentIssues';
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import { Button } from '@/components/ui/button';
+import { Target, TrendingUp, Zap, AlertTriangle } from 'lucide-react';
 
 export default function ProjectOverviewTab() {
   const { project } = useOutletContext();
@@ -15,10 +16,10 @@ export default function ProjectOverviewTab() {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
-        <div className="h-24 bg-slate-900 rounded-lg border border-slate-800" />
-        <div className="h-24 bg-slate-900 rounded-lg border border-slate-800" />
-        <div className="h-24 bg-slate-900 rounded-lg border border-slate-800" />
-        <div className="h-24 bg-slate-900 rounded-lg border border-slate-800" />
+        <div className="h-24 bg-zinc-900 rounded-lg border border-zinc-800" />
+        <div className="h-24 bg-zinc-900 rounded-lg border border-zinc-800" />
+        <div className="h-24 bg-zinc-900 rounded-lg border border-zinc-800" />
+        <div className="h-24 bg-zinc-900 rounded-lg border border-zinc-800" />
       </div>
     );
   }
@@ -44,13 +45,13 @@ export default function ProjectOverviewTab() {
           title="Total Issues"
           value={dashboardData?.stats?.totalIssues ?? 0}
           subtitle={`${dashboardData?.stats?.openIssues ?? 0} Open • ${dashboardData?.stats?.completedIssues ?? 0} Done`}
-          icon="🎯"
+          icon={<Target className="w-5 h-5 text-zinc-400" />}
         />
         <StatCard
           title="Completion Rate"
           value={`${dashboardData?.stats?.completion ?? 0}%`}
           subtitle={`${dashboardData?.stats?.done ?? 0} of ${dashboardData?.stats?.totalIssues ?? 0} Resolved`}
-          icon="📈"
+          icon={<TrendingUp className="w-5 h-5 text-emerald-400" />}
         />
         <StatCard
           title="Avg Resolution"
@@ -60,7 +61,7 @@ export default function ProjectOverviewTab() {
               : 'N/A'
           }
           subtitle="Hours to resolution"
-          icon="⚡"
+          icon={<Zap className="w-5 h-5 text-amber-400" />}
         />
         <StatCard
           title="Overdue & Stale"
@@ -69,30 +70,8 @@ export default function ProjectOverviewTab() {
             (dashboardData?.stats?.staleCount || 0)
           }
           subtitle={`${dashboardData?.stats?.overdueCount || 0} overdue • ${dashboardData?.stats?.staleCount || 0} stale`}
-          icon="⚠️"
+          icon={<AlertTriangle className="w-5 h-5 text-red-400" />}
         />
-      </div>
-
-      {/* Quick Action Navigation Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-4 rounded-lg">
-        <div>
-          <h3 className="text-sm font-bold text-white">Project Workflows</h3>
-          <p className="text-xs text-slate-400">
-            Switch between Kanban board, full issues table, and member management.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link to={`/projects/${project.id}/board`}>
-            <Button size="sm" variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs">
-              Kanban Board
-            </Button>
-          </Link>
-          <Link to={`/projects/${project.id}/issues`}>
-            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs">
-              Issues List →
-            </Button>
-          </Link>
-        </div>
       </div>
 
       {/* Charts Grid */}

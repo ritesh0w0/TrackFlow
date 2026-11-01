@@ -1,14 +1,23 @@
 import { NavLink } from 'react-router-dom';
 import { Separator } from '@/components/ui/separator';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/useAuth';
 import { Button } from '@/components/ui/button';
+import {
+  LayoutDashboard,
+  FolderGit2,
+  CheckSquare,
+  User,
+  Settings,
+  LogOut,
+  X,
+} from 'lucide-react';
 
 const navItems = [
-  { label: 'Dashboard', path: '/dashboard', icon: '📊' },
-  { label: 'Projects', path: '/projects', icon: '📁' },
-  { label: 'All Issues', path: '/issues', icon: '🎯' },
-  { label: 'Profile', path: '/profile', icon: '👤' },
-  { label: 'Settings', path: '/settings', icon: '⚙️' },
+  { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  { label: 'Projects', path: '/projects', icon: FolderGit2 },
+  { label: 'All Issues', path: '/issues', icon: CheckSquare },
+  { label: 'Profile', path: '/profile', icon: User },
+  { label: 'Settings', path: '/settings', icon: Settings },
 ];
 
 export default function Sidebar({ onClose }) {
@@ -31,30 +40,33 @@ export default function Sidebar({ onClose }) {
             onClick={onClose}
             className="md:hidden text-zinc-400 hover:text-white h-7 w-7 p-0"
           >
-            ✕
+            <X className="w-4 h-4" />
           </Button>
         )}
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            onClick={() => onClose && onClose()}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
-                isActive
-                  ? 'bg-zinc-800/90 text-white font-semibold border border-zinc-700/60 shadow-xs'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
-              }`
-            }
-          >
-            <span className="text-sm">{item.icon}</span>
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={() => onClose && onClose()}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                  isActive
+                    ? 'bg-zinc-800/90 text-white font-semibold border border-zinc-700/60 shadow-xs'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+                }`
+              }
+            >
+              <Icon className="w-4 h-4 shrink-0 text-zinc-400 group-hover:text-zinc-200" />
+              <span>{item.label}</span>
+            </NavLink>
+          );
+        })}
       </nav>
 
       <Separator className="bg-zinc-800" />
@@ -67,7 +79,7 @@ export default function Sidebar({ onClose }) {
           onClick={logout}
           className="w-full justify-start text-xs text-zinc-400 hover:text-rose-400 hover:bg-zinc-900/80 h-9 px-3 gap-2"
         >
-          <span>🚪</span>
+          <LogOut className="w-4 h-4 text-zinc-400" />
           <span>Log out</span>
         </Button>
       </div>

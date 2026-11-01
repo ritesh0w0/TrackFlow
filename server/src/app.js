@@ -25,23 +25,58 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS configuration
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:5173',
-  process.env.CLIENT_URL,
-].filter(Boolean);
+// CORS configuration - Environment-driven with strict production origin verification
+const getAllowedOrigins = () => {
+  const origins = [
+    'http://localhost:5173',
+    'http://localhost:4173',
+    'http://127.0.0.1:5173',
+  ];
+
+  if (process.env.CLIENT_URL) {
+    const urls = process.env.CLIENT_URL.split(',').map((u) => u.trim()).filter(Boolean);
+    origins.push(...urls);
+  }
+
+  if (process.env.ALLOWED_ORIGINS) {
+    const urls = process.env.ALLOWED_ORIGINS.split(',').map((u) => u.trim()).filter(Boolean);
+    origins.push(...urls);
+  }
+
+  return [...new Set(origins)];
+};
+
+const allowedOrigins = getAllowedOrigins();
+
+// Trust reverse proxy on localhost loopback (Nginx)
+app.set('trust proxy', 'loopback');
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, server-to-server)
+      // Allow requests with no origin (mobile clients, curl, server-to-server)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+
+      // In development or test, allow configured origins or localhost
+      if (process.env.NODE_ENV !== 'production') {
+        if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+          return callback(null, true);
+        }
         return callback(null, true);
       }
-      return callback(null, true); // Permissive fallback for deployment previews
+
+      // In production, allow configured origins, Azure host/IP, and localhost
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.includes('apidash-7f29a6.centralindia.cloudapp.azure.com') ||
+        origin.includes('20.219.5.208') ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:')
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

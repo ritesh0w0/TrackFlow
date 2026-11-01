@@ -1,14 +1,14 @@
 const prisma = require('../config/prismaClient');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('../config/jwt');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
 const JWT_EXPIRES_IN = '7d';
 
 function generateToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email, name: user.name },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: JWT_EXPIRES_IN }
   );
 }
@@ -106,7 +106,7 @@ async function getMeService(userId) {
 }
 
 async function getUserProfileWithStatsService(userId) {
-  const [user, projects, assignedOpenIssuesCount, assignedDoneIssuesCount] =
+  const [user, projects, assignedIssueGroups] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -140,17 +140,11 @@ async function getUserProfileWithStatsService(userId) {
         },
         orderBy: { joinedAt: 'desc' },
       }),
-      prisma.issue.count({
-        where: {
-          assigneeId: userId,
-          status: { in: ['TODO', 'IN_PROGRESS'] },
-        },
-      }),
-      prisma.issue.count({
-        where: {
-          assigneeId: userId,
-          status: 'DONE',
-        },
+      // Single consolidated groupBy query replaces two separate count queries
+      prisma.issue.groupBy({
+        by: ['status'],
+        where: { assigneeId: userId },
+        _count: { _all: true },
       }),
     ]);
 
@@ -160,13 +154,23 @@ async function getUserProfileWithStatsService(userId) {
     throw error;
   }
 
+  let assignedOpenIssues = 0;
+  let assignedCompletedIssues = 0;
+  assignedIssueGroups.forEach((g) => {
+    if (g.status === 'DONE') {
+      assignedCompletedIssues += g._count._all;
+    } else {
+      assignedOpenIssues += g._count._all;
+    }
+  });
+
   return {
     ...user,
     stats: {
       projectsJoined: user._count.projectMembers,
       issuesReported: user._count.reportedIssues,
-      assignedOpenIssues: assignedOpenIssuesCount,
-      assignedCompletedIssues: assignedDoneIssuesCount,
+      assignedOpenIssues,
+      assignedCompletedIssues,
       totalComments: user._count.comments,
     },
     projects: projects.map((pm) => ({

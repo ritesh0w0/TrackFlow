@@ -11,16 +11,20 @@ const {
   updateProfileSchema,
 } = require('../validations/auth.validation');
 
+const COOKIE_NAME = process.env.COOKIE_NAME || (process.env.NODE_ENV === 'production' ? 'trackflow_token' : 'token');
+const COOKIE_PATH = process.env.COOKIE_PATH || (process.env.NODE_ENV === 'production' ? '/trackflow' : '/');
+
 async function signupController(req, res, next) {
   try {
     const validatedData = signupSchema.parse(req.body);
     const result = await signupService(validatedData);
 
-    // Set cookie on signup for seamless auth
-    res.cookie('token', result.token, {
+    // Set cookie on signup for seamless auth with path-based isolation
+    res.cookie(COOKIE_NAME, result.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: 'lax',
+      path: COOKIE_PATH,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -50,10 +54,11 @@ async function loginController(req, res, next) {
     const validatedData = loginSchema.parse(req.body);
     const result = await loginService(validatedData);
 
-    res.cookie('token', result.token, {
+    res.cookie(COOKIE_NAME, result.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: 'lax',
+      path: COOKIE_PATH,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -131,11 +136,20 @@ async function updateProfileController(req, res, next) {
 }
 
 async function logoutController(req, res) {
-  res.clearCookie('token', {
+  res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    sameSite: 'lax',
+    path: COOKIE_PATH,
   });
+  if (COOKIE_NAME !== 'token') {
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+  }
   return res.status(200).json({
     success: true,
     message: 'Logged out successfully',

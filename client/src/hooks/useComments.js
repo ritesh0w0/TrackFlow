@@ -9,14 +9,18 @@ export function useComments(issueId) {
   });
 }
 
+// PERF-07: Refined query invalidations to avoid blanket dashboard re-fetches
 export function useCreateComment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ issueId, data }) => commentApi.createComment(issueId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['comments', variables.issueId] });
-      queryClient.invalidateQueries({ queryKey: ['activity'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      if (variables.projectId) {
+        queryClient.invalidateQueries({ queryKey: ['activity', variables.projectId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['activity'] });
+      }
     },
   });
 }
@@ -25,9 +29,12 @@ export function useUpdateComment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ commentId, data }) => commentApi.updateComment(commentId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comments'] });
-      queryClient.invalidateQueries({ queryKey: ['activity'] });
+    onSuccess: (_, variables) => {
+      if (variables?.issueId) {
+        queryClient.invalidateQueries({ queryKey: ['comments', variables.issueId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['comments'] });
+      }
     },
   });
 }
@@ -36,9 +43,12 @@ export function useDeleteComment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: commentApi.deleteComment,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comments'] });
-      queryClient.invalidateQueries({ queryKey: ['activity'] });
+    onSuccess: (_, variables) => {
+      if (variables?.issueId) {
+        queryClient.invalidateQueries({ queryKey: ['comments', variables.issueId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['comments'] });
+      }
     },
   });
 }

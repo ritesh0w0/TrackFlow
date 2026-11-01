@@ -3,12 +3,12 @@ import { useIssues, useUpdateIssueStatus } from '@/hooks/useIssues';
 import KanbanColumn from './KanbanColumn';
 import IssueFormDialog from '@/components/issue/IssueFormDialog';
 import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 
 export default function KanbanBoard({ projectId }) {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [defaultStatus, setDefaultStatus] = useState('TODO');
 
   const { data, isLoading, isError, error, refetch } = useIssues(projectId, {
     limit: 100,
@@ -20,8 +20,7 @@ export default function KanbanBoard({ projectId }) {
     statusMutation.mutate({ issueId, status: newStatus });
   };
 
-  const handleOpenCreateWithStatus = (status) => {
-    setDefaultStatus(status || 'TODO');
+  const handleOpenCreate = () => {
     setIsCreateOpen(true);
   };
 
@@ -108,10 +107,11 @@ export default function KanbanBoard({ projectId }) {
         </div>
 
         <Button
-          onClick={() => handleOpenCreateWithStatus('TODO')}
-          className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 text-xs font-semibold shrink-0"
+          onClick={handleOpenCreate}
+          className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 text-xs font-semibold shrink-0 flex items-center gap-1.5"
         >
-          + Add Issue
+          <Plus className="w-3.5 h-3.5" />
+          Add Issue
         </Button>
       </div>
 
@@ -122,21 +122,21 @@ export default function KanbanBoard({ projectId }) {
           issues={todoIssues}
           projectId={projectId}
           onStatusChange={handleStatusChange}
-          onCreateIssue={handleOpenCreateWithStatus}
+          onCreateIssue={handleOpenCreate}
         />
         <KanbanColumn
           status="IN_PROGRESS"
           issues={inProgressIssues}
           projectId={projectId}
           onStatusChange={handleStatusChange}
-          onCreateIssue={handleOpenCreateWithStatus}
+          onCreateIssue={handleOpenCreate}
         />
         <KanbanColumn
           status="DONE"
           issues={doneIssues}
           projectId={projectId}
           onStatusChange={handleStatusChange}
-          onCreateIssue={handleOpenCreateWithStatus}
+          onCreateIssue={handleOpenCreate}
         />
       </div>
 

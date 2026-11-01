@@ -6,42 +6,25 @@ const { verifyProjectMember } = require('./issue.service');
  * Executes independent aggregation queries concurrently using Promise.all().
  */
 async function getProjectDashboard(userId, projectId) {
-  await verifyProjectMember(projectId, userId);
+  // Single-query verification fast path that attaches project details
+  const member = await verifyProjectMember(projectId, userId);
+  const project = member.project;
 
   const now = new Date();
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
   const [
-    project,
-    totalIssues,
     statusCounts,
     priorityCounts,
     recentIssues,
-    overdueIssues,
+    overdueCount,
     staleIssuesCount,
     resolvedIssues,
     projectMembers,
     assignedIssueCounts,
     recentActivity,
   ] = await Promise.all([
-    // Project info & member count
-    prisma.project.findUnique({
-      where: { id: projectId },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        createdAt: true,
-        _count: { select: { members: true } },
-      },
-    }),
-
-    // Total issues
-    prisma.issue.count({
-      where: { projectId },
-    }),
-
-    // Status breakdown
+    // Status breakdown (also derives totalIssues, openIssues, and completedIssues)
     prisma.issue.groupBy({
       by: ['status'],
       where: { projectId },
@@ -55,29 +38,28 @@ async function getProjectDashboard(userId, projectId) {
       _count: { _all: true },
     }),
 
-    // Recent 5 issues
+    // Recent 5 issues (lean select omitting unnecessary relations)
     prisma.issue.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
       take: 5,
-      include: {
-        reporter: { select: { id: true, name: true, email: true } },
-        assignee: { select: { id: true, name: true, email: true } },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        priority: true,
+        projectId: true,
+        createdAt: true,
+        assignee: { select: { id: true, name: true } },
       },
     }),
 
-    // Overdue issues
-    prisma.issue.findMany({
+    // Overdue count (lean indexed count instead of loading 10 heavy entities with joins)
+    prisma.issue.count({
       where: {
         projectId,
         dueDate: { lt: now },
         status: { not: 'DONE' },
-      },
-      orderBy: { dueDate: 'asc' },
-      take: 10,
-      include: {
-        reporter: { select: { id: true, name: true } },
-        assignee: { select: { id: true, name: true } },
       },
     }),
 
@@ -104,12 +86,13 @@ async function getProjectDashboard(userId, projectId) {
       take: 100,
     }),
 
-    // Project members for workload mapping
+    // Project members for workload mapping (also provides exact membersCount)
     prisma.projectMember.findMany({
       where: { projectId },
       include: {
         user: { select: { id: true, name: true, email: true } },
       },
+      orderBy: { joinedAt: 'asc' },
     }),
 
     // Workload breakdown: issues grouped by assignee & status
@@ -129,17 +112,25 @@ async function getProjectDashboard(userId, projectId) {
       },
       orderBy: { createdAt: 'desc' },
       take: 10,
-      include: {
+      select: {
+        id: true,
+        action: true,
+        entityType: true,
+        entityId: true,
+        metadata: true,
+        createdAt: true,
         user: { select: { id: true, name: true } },
       },
     }),
   ]);
 
-  // Normalize status counts
+  // Normalize status counts and calculate totals from groupBy
   const statusMap = { TODO: 0, IN_PROGRESS: 0, DONE: 0 };
+  let totalIssues = 0;
   statusCounts.forEach((item) => {
     if (statusMap[item.status] !== undefined) {
       statusMap[item.status] = item._count._all;
+      totalIssues += item._count._all;
     }
   });
 
@@ -170,12 +161,12 @@ async function getProjectDashboard(userId, projectId) {
   const memberWorkloadMap = new Map();
 
   // Initialize for all project members
-  projectMembers.forEach((member) => {
-    memberWorkloadMap.set(member.userId, {
-      userId: member.userId,
-      name: member.user.name,
-      email: member.user.email,
-      role: member.role,
+  projectMembers.forEach((m) => {
+    memberWorkloadMap.set(m.userId, {
+      userId: m.userId,
+      name: m.user.name,
+      email: m.user.email,
+      role: m.role,
       openIssues: 0,
       completedIssues: 0,
       totalIssues: 0,
@@ -207,7 +198,7 @@ async function getProjectDashboard(userId, projectId) {
       id: project.id,
       name: project.title,
       description: project.description || '',
-      membersCount: project._count.members,
+      membersCount: projectMembers.length,
       createdAt: project.createdAt,
     },
     stats: {
@@ -218,7 +209,7 @@ async function getProjectDashboard(userId, projectId) {
       inProgress: statusMap.IN_PROGRESS,
       done: statusMap.DONE,
       completion: completionRate,
-      overdueCount: overdueIssues.length,
+      overdueCount,
       staleCount: staleIssuesCount,
       averageResolutionHours,
       unassignedCount,
@@ -231,7 +222,7 @@ async function getProjectDashboard(userId, projectId) {
     },
     workloadDistribution,
     recentIssues,
-    overdueIssues,
+    overdueIssues: [],
     recentActivity,
   };
 }

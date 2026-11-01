@@ -9,7 +9,7 @@ export default function AppShell() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
+      <div className="flex h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100">
         {/* Desktop Sidebar & Mobile Drawer */}
         <div
           className={`${
@@ -30,7 +30,7 @@ export default function AppShell() {
         {/* Main View Area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Navbar onToggleMobileNav={() => setIsMobileNavOpen(!isMobileNavOpen)} />
-          <main className="flex-1 overflow-auto p-4 sm:p-6 bg-slate-950">
+          <main className="flex-1 overflow-auto p-4 sm:p-6 bg-zinc-950">
             <Outlet />
           </main>
         </div>

@@ -7,10 +7,10 @@ export default function ActivityTimeline({ projectId }) {
 
   if (isLoading) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 space-y-4 animate-pulse">
-        <div className="h-4 bg-slate-800 rounded w-32" />
-        <div className="h-10 bg-slate-800 rounded w-full" />
-        <div className="h-10 bg-slate-800 rounded w-full" />
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 space-y-4 animate-pulse">
+        <div className="h-4 bg-zinc-800 rounded w-32" />
+        <div className="h-10 bg-zinc-800 rounded w-full" />
+        <div className="h-10 bg-zinc-800 rounded w-full" />
       </div>
     );
   }
@@ -30,15 +30,15 @@ export default function ActivityTimeline({ projectId }) {
 
   if (activity.length === 0) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 text-center text-xs text-slate-500">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center text-xs text-zinc-500">
         No project activity logged yet.
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 space-y-4">
-      <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-3">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 space-y-4 shadow-xs">
+      <h3 className="text-sm font-bold text-zinc-100 border-b border-zinc-800 pb-3">
         Project Activity Log
       </h3>
       <div className="pt-2">

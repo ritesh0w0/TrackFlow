@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link, Outlet, useLocation } from 'react-router-dom';
 import { useProject } from '@/hooks/useProjects';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/useAuth';
 import { Button } from '@/components/ui/button';
 import ProjectFormDialog from '@/components/project/ProjectFormDialog';
 import DeleteProjectDialog from '@/components/project/DeleteProjectDialog';
